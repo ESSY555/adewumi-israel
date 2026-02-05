@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  traefik:
+    ports:
+      - "80:80"
+      - "8080:8080"
+    command:
+      - --api.insecure=true
+
+  app:
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/var/www/html
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      TRAEFIK_HOST: secure-drop.localhost
+
+  postgres:
+    ports:
+      - "5432:5432"

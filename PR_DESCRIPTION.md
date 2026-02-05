@@ -3,6 +3,7 @@
 ## Live Deployment URL
 - https://adewumi-test-production.up.railway.app/
 - API Docs: https://adewumi-test-production.up.railway.app/docs
+- Postman Base URL: https://adewumi-test-production.up.railway.app/
 
 ## Architectural Decisions (Summary)
 - Built with Laravel 11 as an API-first service focused on a single domain: secure, burn-on-read notes.
@@ -53,28 +54,24 @@ Response (200):
 	- `docker compose up -d --build`
 
 Notes:
+- This setup now includes Traefik and PostgreSQL in Docker Compose.
+- For local routing, map `secure-drop.localhost` to `127.0.0.1` in your hosts file.
 - The container entrypoint automatically runs migrations on start.
-- The current `docker-compose.yml` only defines the `app` service. You must provide a PostgreSQL instance separately (or add one) and ensure `.env` points to it (e.g., `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`).
 
 ## Traefik Configuration Explanation
-- There is no Traefik configuration in this repository. The app exposes HTTP via `php artisan serve` inside the container on `$PORT` (see `docker-entrypoint.sh`).
-- In production, the platform (Railway) provides the reverse proxy/ingress and TLS termination. Locally, Docker exposes the container port directly (`8080:80` in `docker-compose.yml`).
+- Traefik is defined in `docker-compose.yml` and acts as the reverse proxy.
+- Routing uses Docker labels on the `app` service:
+	- Router rule: `Host(secure-drop.localhost)` (or `TRAEFIK_HOST` env)
+	- EntryPoint: `web` (port 80)
+	- Service target port: `$PORT` (default `8000`)
+- Production overrides (`docker-compose.prod.yml`) enable TLS with Let’s Encrypt via the `websecure` entrypoint and ACME config.
 
 ## CI/CD Pipeline Instructions
-- CI/CD is handled by Railway’s GitHub integration:
-	1. Connect the GitHub repo to Railway.
-	2. Railway builds the Docker image using `Dockerfile`.
-	3. On deploy, the container runs `docker-entrypoint.sh`, which:
-		 - Creates `.env` from Railway environment variables (supports `DATABASE_URL` or `PG*` vars).
-		 - Ensures `APP_KEY` is set (uses the env var or generates one).
-		 - Runs migrations (`php artisan migrate --force`).
-		 - Starts the app on `$PORT`.
+- GitHub Actions workflow in `.github/workflows/ci.yml`:
+	1. **Lint & Test**: Runs `vendor/bin/pint --test` and `php artisan test` against a Postgres service.
+	2. **Security Scan**: Builds the Docker image and scans it with Trivy (fails on HIGH/CRITICAL).
+	3. **Build & Push**: Builds and pushes the Docker image to GHCR.
+	4. **(Optional) Deploy**: SSH step to pull the latest image and run compose on a VPS.
 
-Required environment variables in Railway:
-- `APP_URL` (set to the Railway public URL)
-- `APP_KEY` (Laravel app key)
-- `DATABASE_URL` **or** the standard `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`
-- `PORT` (provided by Railway)
-
-Optional variables:
-- `APP_ENV=production`, `APP_DEBUG=false`
+Required GitHub Secrets for deploy (optional):
+- `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`

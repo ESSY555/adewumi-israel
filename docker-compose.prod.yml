@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  traefik:
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    volumes:
+      - traefik-letsencrypt:/letsencrypt
+    restart: unless-stopped
+
+  app:
+    labels:
+      - traefik.http.routers.secure-drop.tls=true
+      - traefik.http.routers.secure-drop.tls.certresolver=letsencrypt
+    restart: unless-stopped
+
+  postgres:
+    restart: unless-stopped
+
+volumes:
+  traefik-letsencrypt:
